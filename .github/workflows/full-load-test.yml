@@ -1,0 +1,44 @@
+name: master, full load test - JMeter로 빡센 부하테스트
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Start Mock API Server
+        run: |
+          npm install -g json-server
+          json-server --watch ./src/backend/db-pika.json --port 3333 &
+          sleep 5 # 서버가 완전히 뜰 때까지 잠시 대기
+
+      - name: Install Latest JMeter (v5.6.3)
+        run: |
+          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
+
+      - name: Run JMeter Full Load Test
+        run: |
+          mkdir -p master_dashboard_report
+          ./apache-jmeter-5.6.3/bin/jmeter -n -t ./full-load-test.jmx -l ./master_result.jtl -e -o ./master_dashboard_report
+
+      - name: Upload JMeter Full Load Report
+        uses: actions/upload-artifact@v4
+        if: always() 
+        with:
+          name: master-full-load-report
+          path: master_dashboard_report/

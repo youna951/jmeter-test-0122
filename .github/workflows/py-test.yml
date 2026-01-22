@@ -1,0 +1,65 @@
+name: feature, Pytest 및 Allure 리포트 생성
+
+on:
+  push:
+    # 모든 브랜치에 푸시가 발생하면 실행함
+    branches: ["**"]
+    # master와 dev 브랜치를 제외한 모든 브랜치에서 푸시 발생 시 실행
+    #branches-ignore:
+    #  - 'master'
+    #  - 'dev'
+  # Actions 탭에서 수동 실행 가능
+  workflow_dispatch:
+
+jobs:
+  pytest-test:
+    name: 파이테스트 및 리포트 생성
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 파이썬 환경 설정 (3.10)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Node.js 설정 (json-server용)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: 로컬 API 서버 기동
+        run: |
+          npm install -g json-server
+          json-server --watch ./src/backend/db-pika.json --port 3333 &
+          sleep 5 # 서버가 완전히 뜰 때까지 대기
+
+      - name: 필수 라이브러리 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest allure-pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: 테스트 실행 및 Allure 결과 수집
+        run: |
+          mkdir -p allure-results
+          pytest --alluredir=allure-results
+        # 테스트가 실패해도 리포트 생성을 위해 다음 단계 진행
+        continue-on-error: true
+
+      - name: Allure HTML 리포트 변환
+        uses: simple-elf/allure-report-action@master
+        if: always()
+        with:
+          allure_results: allure-results
+          # 히스토리 기능 미사용으로 관련 설정 제외
+          keep_reports: 10
+
+      - name: 최종 리포트 업로드 (Artifacts)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-result-html
+          path: allure-report

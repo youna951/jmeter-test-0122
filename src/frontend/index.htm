@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>QA 실습용 블로그</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            background: #f4f7f6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+
+        /* 리스트 스타일 */
+        .post-item {
+            border-bottom: 1px solid #eee;
+            padding: 15px 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .post-item:hover {
+            background: #f0f7ff;
+        }
+
+        .post-title {
+            font-weight: bold;
+            color: #007bff;
+            font-size: 1.1em;
+        }
+
+        /* 상세페이지 스타일 */
+        .detail-header {
+            margin-bottom: 20px;
+        }
+
+        .btn-back {
+            padding: 8px 15px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        .post-content {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-left: 5px solid #007bff;
+        }
+
+        /* 댓글 스타일 */
+        .comment-section {
+            margin-top: 40px;
+        }
+
+        .comment-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+
+        .comment-author {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .comment-email {
+            color: #888;
+            font-size: 0.8em;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div id="list-view">
+            <h1>📋 게시글 목록</h1>
+            <div id="post-list">로딩 중...</div>
+        </div>
+
+        <div id="detail-view" style="display: none;">
+            <button class="btn-back" onclick="showListView()">← 목록으로 돌아가기</button>
+            <div id="post-detail">
+            </div>
+            <div class="comment-section">
+                <h3>💬 댓글</h3>
+                <div id="comment-list">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3333';
+
+        // 화면 전환 함수: 목록 보기
+        function showListView() {
+            document.getElementById('list-view').style.display = 'block';
+            document.getElementById('detail-view').style.display = 'none';
+        }
+
+        // 화면 전환 함수: 상세 보기
+        function showDetailView() {
+            document.getElementById('list-view').style.display = 'none';
+            document.getElementById('detail-view').style.display = 'block';
+        }
+
+        // 전체 게시글 가져오기
+        async function fetchPosts() {
+            try {
+                const response = await fetch(`${API_BASE}/posts`);
+                const posts = await response.json();
+                const listDiv = document.getElementById('post-list');
+                listDiv.innerHTML = '';
+
+                posts.forEach(post => {
+                    const item = document.createElement('div');
+                    item.className = 'post-item';
+                    item.onclick = () => fetchPostDetail(post.id); // 클릭 시 상세 조회 호출
+                    item.innerHTML = `<div class="post-title">${post.id}. ${post.title}</div>`;
+                    listDiv.appendChild(item);
+                });
+            } catch (e) {
+                document.getElementById('post-list').innerHTML = '<b style="color:red">서버 연결 실패! 포트 3333을 확인하세요.</b>';
+            }
+        }
+
+        // 특정 게시글 상세 및 댓글 가져오기
+        // 특정 게시글 상세 및 댓글 가져오기 (쿼리 스트링 방식)
+        async function fetchPostDetail(postId) {
+            showDetailView();
+            const detailDiv = document.getElementById('post-detail');
+            const commentDiv = document.getElementById('comment-list');
+
+            detailDiv.innerHTML = '게시글 불러오는 중...';
+            commentDiv.innerHTML = '댓글 불러오는 중...';
+
+            try {
+                // 1. 게시글 단건 조회 (쿼리 스트링 사용: posts?id=postId)
+                // 주의: 이 방식은 항상 배열 [ { ... } ] 형태로 응답이 옴
+                const postRes = await fetch(`${API_BASE}/posts?id=${postId}`);
+                const postArray = await postRes.json();
+
+                // 배열의 첫 번째 요소를 가져옴
+                if (postArray.length > 0) {
+                    const post = postArray[0];
+                    detailDiv.innerHTML = `
+                <h1>${post.title}</h1>
+                <div class="post-content">${post.body}</div>
+            `;
+                } else {
+                    detailDiv.innerHTML = '<b style="color:red">해당 게시글을 찾을 수 없습니다.</b>';
+                    return;
+                }
+
+                // 2. 해당 게시글의 댓글 조회 (?postId=...)
+                const commentRes = await fetch(`${API_BASE}/comments?postId=${postId}`);
+                const comments = await commentRes.json();
+
+                commentDiv.innerHTML = '';
+                if (comments.length === 0) {
+                    commentDiv.innerHTML = '<p>댓글이 없습니다.</p>';
+                } else {
+                    comments.forEach(comment => {
+                        const cCard = document.createElement('div');
+                        cCard.className = 'comment-card';
+                        cCard.innerHTML = `
+                    <div class="comment-author">${comment.name}</div>
+                    <div class="comment-email">${comment.email}</div>
+                    <p>${comment.body}</p>
+                `;
+                        commentDiv.appendChild(cCard);
+                    });
+                }
+            } catch (e) {
+                console.error(e);
+                detailDiv.innerHTML = '<b style="color:red">데이터를 가져오는데 실패했습니다.</b>';
+            }
+        }
+
+        // 초기 실행
+        fetchPosts();
+    </script>
+
+</body>
+
+</html>
